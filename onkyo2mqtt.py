@@ -59,10 +59,11 @@ def msghandler(mqc,userdata,msg):
                 if msg.retain:
                         return
                 mytopic=msg.topic[len(topic):]
+                payload = msg.payload.decode()
                 if mytopic=="command":
-                        sendavr(msg.payload)
+                        sendavr(payload)
                 elif mytopic[0:4]=="set/":
-                        llcmd=eiscp.core.command_to_iscp(mytopic[4:]+" "+msg.payload)
+                        llcmd=eiscp.core.command_to_iscp(mytopic[4:]+" "+payload)
                         sendavr(llcmd)
         except Exception as e:
                 logging.warning("Error processing message %s" % e)
