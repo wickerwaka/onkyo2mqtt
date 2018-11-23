@@ -12,6 +12,7 @@
 # - Eclipse Paho for Python - http://www.eclipse.org/paho/clients/python/
 #
 
+import sys
 import argparse
 import logging
 import logging.handlers
@@ -22,6 +23,9 @@ import eiscp
 
 version = "0.8"
 lastSend = 0
+
+class EiscpError(Exception):
+    pass
 
 def parse_args(raw_args=None):
     parser = argparse.ArgumentParser(description='Bridge between onkyo-eiscp and MQTT')
@@ -70,6 +74,8 @@ def msghandler(mqc, userdata, msg):
     args = userdata['args']
     receiver = userdata['receiver']
     try:
+        if receiver is None:
+            raise EiscpError('no receiver currently connected')
         if msg.retain:
             return
         mytopic = msg.topic[len(args.mqtt_topic):]
@@ -80,7 +86,7 @@ def msghandler(mqc, userdata, msg):
             llcmd = eiscp.core.command_to_iscp(mytopic[4:] + " " + payload)
             sendavr(receiver, llcmd)
     except Exception as e:
-        logging.warning("Error processing message %s" % e)
+        logging.warning("Error processing MQTT message: %s" % e)
 
 def connecthandler(mqc, userdata, flags, rc):
     logging.info("Connected to MQTT broker with rc=%d" % (rc))
@@ -118,12 +124,10 @@ def setup_eiscp(args):
             receivers = [r for r in receivers
                          if args.onkyo_id in r.info['identifier']]
         if len(receivers) == 0:
-            logging.error("No specified AVRs discovered")
-            exit(1)
+            raise EiscpError("No specified AVRs discovered")
         elif len(receivers) != 1:
-            logging.error("More than one AVR discovered, please specify "
-                          "explicitely using --onkyo-address or --onkyo-id")
-            exit(1)
+            raise EiscpError("More than one AVR discovered, please specify "
+                             "explicitely using --onkyo-address or --onkyo-id")
         receiver=receivers.pop(0)
         logging.info('Discovered AVR at %s', receiver)
     return receiver
@@ -149,6 +153,12 @@ def publish(args, mqc, suffix, val, raw):
                 qos=0, retain=True)
     logging.debug('Published %s to status/%s' % (repr(robj), suffix))
 
+def read_from_eiscp(receiver, timeout):
+    msg = receiver.get(timeout)
+    while msg is not None:
+        yield msg
+        msg = receiver.get(timeout)
+
 def main():
     args = parse_args()
 
@@ -157,32 +167,38 @@ def main():
                  'with topic prefix \"%s\"' % (version, args.mqtt_topic))
 
     mqc = setup_mqtt(args)
-    receiver = setup_eiscp(args)
-    eiscp_connect_handler(mqc, receiver, args)
-
-    # Query some initial values
-    for icmd in ("PWR", "MVL", "SLI", "SLA", "LMD"):
-        sendavr(receiver, icmd + "QSTN")
-
     mqc.loop_start()
 
     while True:
-        msg = receiver.get(args.onkyo_poll_interval)
-        if msg is not None:
-            try:
-                parsed = eiscp.core.iscp_to_command(msg)
-                # Either part of the parsed command can be a list
-                if isinstance(parsed[1], str) or isinstance(parsed[1], int):
-                    val = parsed[1]
-                else:
-                    val = parsed[1][0]
-                if isinstance(parsed[0], str):
-                    publish(args, mqc, parsed[0], val, msg)
-                else:
-                    for pp in parsed[0]:
-                        publish(args, mqc, pp, val, msg)
-            except:
-                publish(args, mqc, msg[:3], msg[3:], msg)
+        try:
+            receiver = setup_eiscp(args)
+            eiscp_connect_handler(mqc, receiver, args)
+
+            # Query some initial values
+            for icmd in ("PWR", "MVL", "SLI", "SLA", "LMD"):
+                sendavr(receiver, icmd + "QSTN")
+
+            for msg in read_from_eiscp(receiver, args.onkyo_poll_interval):
+                try:
+                    parsed = eiscp.core.iscp_to_command(msg)
+                    # Either part of the parsed command can be a list
+                    if isinstance(parsed[1], str) or isinstance(parsed[1], int):
+                        val = parsed[1]
+                    else:
+                        val = parsed[1][0]
+                    if isinstance(parsed[0], str):
+                        publish(args, mqc, parsed[0], val, msg)
+                    else:
+                        for pp in parsed[0]:
+                            publish(args, mqc, pp, val, msg)
+                except:
+                    publish(args, mqc, msg[:3], msg[3:], msg)
+        except EiscpError as e:
+            logging.warning(str(e))
+
+        eiscp_disconnect_handler(mqc, args)
+        logging.warning('EISCP connection went stale, retrying')
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()
