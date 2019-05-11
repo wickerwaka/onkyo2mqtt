@@ -1,7 +1,8 @@
 onkyo2mqtt
 ==========
 
-  Written and (C) 2015-16 Oliver Wagner <owagner@tellerulam.com> 
+  Written and (C) 2015-16 Oliver Wagner <owagner@tellerulam.com>
+  Enhancements copyright 2018-19 Jeff Licquia <jeff@licquia.org>
   
   Provided under the terms of the MIT license.
 
@@ -18,7 +19,7 @@ https://github.com/mqtt-smarthome for a rationale and architectural overview.
 
 Prerequisites
 -------------
-* Python 2.7+
+* Python 2.7+.  Tested and working under Python 3.6.
 * onkyo-eiscp - https://github.com/miracle2k/onkyo-eiscp (implements
   the Onkyo EISCP protocol and command translation)
 * Eclipse Paho for Python - http://www.eclipse.org/paho/clients/python/
@@ -62,9 +63,11 @@ and to an AVR.
 
 Error handling
 --------------
-onkyo2mqtt will terminate when it cannot establish a connection to the AVR,
-or the connection dies for any reason. It will, however, reconnect to
-the MQTT broker without restart.
+onkyo2mqtt will attempt to reconnect when it loses its connection to
+either the AVR or the MQTT broker, or if it cannot establish either
+connection at startup.  The current status of both connections is
+published at the topics "\<prefix\>/eiscp_connected" and
+"\<prefix\>/mqtt_connected".
 
 
 Usage
@@ -79,13 +82,23 @@ Usage
                         Defaults to "onkyo/"
     --onkyo-address ONKYO_ADDRESS
                         IP or hostname of the AVR. Defaults to autodiscover
-	--onkyo-id ID
-						Device identifier of AVR to connecct to. Uses autodiscover
+    --onkyo-id ID
+                        Device identifier of AVR to connecct to. Uses autodiscover
     --log LOG           set log level to the specified value. Defaults to
                         WARNING. Try DEBUG for maximum detail                        
                         
 Changelog
 ---------
+* 0.9 - 2019/05/11 - licquia
+  - Do MQTT connection status differently.
+
+* 0.8 - 2018/11/23 - licquia
+  - Massive reformatting and refactoring of the code structure and whitespace.
+  - Updates to accomodate paho-mqtt changes.
+  - Handle text encoding/decoding properly.
+  - Retry EISCP connection failures, instead of exiting.
+  - Publish MQTT and EISCP connection status in MQTT.
+
 * 0.7 - 2016/06/05 - owagner
   - support --onkyo-id
 

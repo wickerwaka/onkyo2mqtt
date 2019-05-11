@@ -21,7 +21,7 @@ import json
 import paho.mqtt.client as mqtt
 import eiscp
 
-version = "0.8"
+version = "0.9"
 lastSend = 0
 
 class EiscpError(Exception):
@@ -93,7 +93,8 @@ def connecthandler(mqc, userdata, flags, rc):
     args = userdata['args']
     mqc.subscribe(args.mqtt_topic + "set/#", qos=0)
     mqc.subscribe(args.mqtt_topic + "command", qos=0)
-    mqc.publish(args.mqtt_topic + "mqtt_connected", 2, qos=1, retain=True)
+    mqc.publish(args.mqtt_topic + "mqtt_connected", 1, qos=1, retain=True)
+    mqc.will_set(args.mqtt_topic + "mqtt_connected", 0, qos=2, retain=True)
 
 def disconnecthandler(mqc, userdata, rc):
     logging.warning("Disconnected from MQTT broker with rc=%d" % (rc))
@@ -105,9 +106,7 @@ def setup_mqtt(args):
     mqc.on_message = msghandler
     mqc.on_connect = connecthandler
     mqc.on_disconnect = disconnecthandler
-    mqc.will_set(args.mqtt_topic + "mqtt_connected", 0, qos=2, retain=True)
     mqc.connect(args.mqtt_host, args.mqtt_port, 60)
-    mqc.publish(args.mqtt_topic + "mqtt_connected", 1, qos=1, retain=True)
     return mqc
 
 def setup_eiscp(args):
