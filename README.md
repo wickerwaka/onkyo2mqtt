@@ -56,9 +56,9 @@ Sending commands is possible in three ways:
 textual command as described in https://github.com/miracle2k/onkyo-eiscp#commands
 3. By publishing a raw EISCP command into the special "\<prefix\>/command" topic
 
-A special topic "\<prefix\>/connected" is maintained. It's a enum
-stating whether the module is currently running and connected to the broker
-and to an AVR.
+Special topics "\<prefix\>/eiscp_connected" and
+"\<prefix\>/mqtt_connected" are maintained.  Each is "0" or "1" for
+false or true, respectively.
 
 
 Error handling
@@ -89,6 +89,9 @@ Usage
                         
 Changelog
 ---------
+* 0.10 - 2019/12/31 - licquia
+  - Fix EISCP connection retries.
+
 * 0.9 - 2019/05/11 - licquia
   - Do MQTT connection status differently.
 

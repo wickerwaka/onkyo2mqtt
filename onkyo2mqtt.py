@@ -169,16 +169,17 @@ def main():
     mqc.loop_start()
 
     while True:
-        try:
-            receiver = setup_eiscp(args)
-            eiscp_connect_handler(mqc, receiver, args)
+        receiver = setup_eiscp(args)
+        eiscp_connect_handler(mqc, receiver, args)
 
-            # Query some initial values
-            for icmd in ("PWR", "MVL", "SLI", "SLA", "LMD"):
-                sendavr(receiver, icmd + "QSTN")
+        # Query some initial values
+        for icmd in ("PWR", "MVL", "SLI", "SLA", "LMD"):
+            sendavr(receiver, icmd + "QSTN")
 
-            for msg in read_from_eiscp(receiver, args.onkyo_poll_interval):
-                try:
+        error = False
+        while not error:
+            try:
+                for msg in read_from_eiscp(receiver, args.onkyo_poll_interval):
                     parsed = eiscp.core.iscp_to_command(msg)
                     # Either part of the parsed command can be a list
                     if isinstance(parsed[1], str) or isinstance(parsed[1], int):
@@ -190,10 +191,9 @@ def main():
                     else:
                         for pp in parsed[0]:
                             publish(args, mqc, pp, val, msg)
-                except:
-                    publish(args, mqc, msg[:3], msg[3:], msg)
-        except EiscpError as e:
-            logging.warning(str(e))
+            except Exception as e:
+                logging.warning(str(e))
+                error = True
 
         eiscp_disconnect_handler(mqc, args)
         logging.warning('EISCP connection went stale, retrying')
